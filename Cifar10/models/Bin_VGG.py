@@ -46,7 +46,7 @@ class Bin_VGG_train(nn.Module):
                 layers['pool'+str(cnt)] = nn.MaxPool2d(kernel_size=2, stride=2)
                 cnt += 1
             else:
-                layers['conv'+str(cnt)] = BinConv2d(in_channels=in_channels, out_channels=x, kernel_size=3, padding=1, istrain=True)
+                layers['conv'+str(cnt)] = BinConv2d(in_channels=in_channels, out_channels=x, kernel_size=3, padding=1, is_train=True)
                 cnt += 1
                 layers['bn'+str(cnt)] = nn.BatchNorm2d(x)
                 cnt += 1
@@ -82,7 +82,7 @@ class Bin_VGG_test(nn.Module):
                 layers['pool'+str(cnt)] = nn.MaxPool2d(kernel_size=2, stride=2)
                 cnt += 1
             else:
-                layers['conv'+str(cnt)] = BinConv2d(in_channels=in_channels, out_channels=x, kernel_size=3, padding=1, istrain=False)
+                layers['conv'+str(cnt)] = BinConv2d(in_channels=in_channels, out_channels=x, kernel_size=3, padding=1, is_train=False)
                 cnt += 1
                 layers['bn'+str(cnt)] = nn.BatchNorm2d(x)
                 cnt += 1
@@ -101,15 +101,15 @@ class NIN_train(nn.Module):
         super(NIN_train, self).__init__()
         self.conv1 = nn.Conv2d(3, 192, kernel_size=5, stride=1, padding=2)
         self.bn1 = nn.BatchNorm2d(192, eps=1e-4, momentum=0.1, affine=False)
-        self.conv2 = BinConv2d(192, 160, kernel_size=1, stride=1, padding=0, istrain=True)
-        self.conv3 = BinConv2d(160, 96, kernel_size=1, stride=1, padding=0, istrain=True)
+        self.conv2 = BinConv2d(192, 160, kernel_size=1, stride=1, padding=0, is_train=True)
+        self.conv3 = BinConv2d(160, 96, kernel_size=1, stride=1, padding=0, is_train=True)
         self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.conv4 = BinConv2d(96, 192, kernel_size=5, stride=1, padding=2, istrain=True, drop=0.5)
-        self.conv5 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, istrain=True)
-        self.conv6 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, istrain=True)
+        self.conv4 = BinConv2d(96, 192, kernel_size=5, stride=1, padding=2, is_train=True, drop=0.5)
+        self.conv5 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, is_train=True)
+        self.conv6 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, is_train=True)
         self.pool2 = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
-        self.conv7 = BinConv2d(192, 192, kernel_size=3, stride=1, padding=1, istrain=True, drop=0.5)
-        self.conv8 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, istrain=True)
+        self.conv7 = BinConv2d(192, 192, kernel_size=3, stride=1, padding=1, is_train=True, drop=0.5)
+        self.conv8 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, is_train=True)
         self.bn2 = nn.BatchNorm2d(192, eps=1e-4, momentum=0.1, affine=False)
         self.conv9 = nn.Conv2d(192, 10, kernel_size=1, stride=1, padding=0)
         self.pool3 = nn.AvgPool2d(kernel_size=8, stride=1, padding=0)
@@ -148,15 +148,15 @@ class NIN_test(nn.Module):
         super(NIN_test, self).__init__()
         self.conv1 = nn.Conv2d(3, 192, kernel_size=5, stride=1, padding=2)
         self.bn1 = nn.BatchNorm2d(192, eps=1e-4, momentum=0.1, affine=False)
-        self.conv2 = BinConv2d(192, 160, kernel_size=1, stride=1, padding=0, istrain=False)
-        self.conv3 = BinConv2d(160, 96, kernel_size=1, stride=1, padding=0, istrain=False)
+        self.conv2 = BinConv2d(192, 160, kernel_size=1, stride=1, padding=0, is_train=False)
+        self.conv3 = BinConv2d(160, 96, kernel_size=1, stride=1, padding=0, is_train=False)
         self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.conv4 = BinConv2d(96, 192, kernel_size=5, stride=1, padding=2, istrain=False, drop=0.5)
-        self.conv5 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, istrain=False)
-        self.conv6 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, istrain=False)
+        self.conv4 = BinConv2d(96, 192, kernel_size=5, stride=1, padding=2, is_train=False, drop=0.5)
+        self.conv5 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, is_train=False)
+        self.conv6 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, is_train=False)
         self.pool2 = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
-        self.conv7 = BinConv2d(192, 192, kernel_size=3, stride=1, padding=1, istrain=False, drop=0.5)
-        self.conv8 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, istrain=False)
+        self.conv7 = BinConv2d(192, 192, kernel_size=3, stride=1, padding=1, is_train=False, drop=0.5)
+        self.conv8 = BinConv2d(192, 192, kernel_size=1, stride=1, padding=0, is_train=False)
         self.bn2 = nn.BatchNorm2d(192, eps=1e-4, momentum=0.1, affine=False)
         self.conv9 = nn.Conv2d(192, 10, kernel_size=1, stride=1, padding=0)
         self.pool3 = nn.AvgPool2d(kernel_size=8, stride=1, padding=0)

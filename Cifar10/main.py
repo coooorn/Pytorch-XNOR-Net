@@ -17,7 +17,7 @@ from sklearn.metrics import confusion_matrix
 import models as models
 sys.path.append('../')
 import binop
-from util import binop_train
+from util import BinopTrain
 from util import bin_save_state
 
 class RunningMean:
@@ -107,7 +107,7 @@ def train_bin(epoch):
         data, target = Variable(data), Variable(target)
 
         optimizer.zero_grad()
-        binop_train.binarization()
+        BinopTrain.binarization()
 
         output = model_train(data)
         _, preds = torch.max(output.data, dim=1)
@@ -117,9 +117,9 @@ def train_bin(epoch):
         loss.backward()
 
         # restore weights
-        binop_train.restore()
+        BinopTrain.restore()
         # update
-        binop_train.updateBinaryGradWeight()
+        BinopTrain.update_binary_grad_weight()
 
         optimizer.step()
         pbar.set_description('%.6f %.6f' % (running_loss.value, running_score.value))
@@ -332,9 +332,9 @@ if __name__ == '__main__':
                     model_test.load_state_dict(torch.load(args.pretrained))
                 else:
                     model_train.load_state_dict(torch.load(args.pretrained))
-                    binop_train = binop_train(model_train)
+                    binop_train = BinopTrain(model_train)
             else:
-                binop_train = binop_train(model_train)
+                binop_train = BinopTrain(model_train)
 
         else:
             if 'VGG' in name:

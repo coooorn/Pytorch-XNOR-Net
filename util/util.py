@@ -1,9 +1,9 @@
-import binop
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-from torch.autograd import Function
+from torch.autograd import Function, Variable
+
+import binop
 
 
 def bin_save_state(args, model):
@@ -102,42 +102,72 @@ class BinActive(Function):
 
 
 class BinConv2d(nn.Conv2d):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, istrain=True, drop=0):
-        super().__init__(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 bias=True,
+                 is_train=True,
+                 drop=0,
+                 groups=1):
+        super().__init__(in_channels,
+                         out_channels,
+                         kernel_size=kernel_size,
+                         stride=stride,
+                         padding=padding,
+                         bias=bias,
+                         groups=groups)
 
         self.alpha = nn.Parameter(torch.FloatTensor(out_channels, 1, 1, 1), requires_grad=False)
-        self.istrain = istrain
+        self.is_train = is_train
         self.bn = nn.BatchNorm2d(in_channels)
         self.dropout_ratio = drop
 
         if drop != 0:
             self.drop = nn.Dropout(drop)
-        if not istrain:
-            self.weight = nn.Parameter(torch.IntTensor(out_channels, 1 + ( in_channels * self.kernel_size[0] * self.kernel_size[1] - 1) // 32))
+
+        if not is_train:
+            h_weight = out_channels
+            w_weight = (1 + (in_channels * self.kernel_size[0] * self.kernel_size[1] - 1) // 32) // self.groups
+            self.weight = nn.Parameter(torch.IntTensor(h_weight, w_weight))
 
     def forward(self, input):
         input = self.bn(input)
-        if self.istrain:
+
+        if self.is_train:
             input = BinActive.apply(input)
             if self.dropout_ratio != 0:
                 input = self.drop(input)
-            input = F.conv2d(input, weight=self.weight, bias=self.bias, stride=self.stride, padding=self.padding)
+            input = F.conv2d(input,
+                             weight=self.weight,
+                             bias=self.bias,
+                             stride=self.stride,
+                             padding=self.padding,
+                             groups=self.groups)
         else:
-            input = bin_conv2d(input, self.weight, self.bias, self.alpha, self.kernel_size, self.stride, self.padding)
+            input = bin_conv2d(input,
+                               self.weight,
+                               self.bias,
+                               self.alpha,
+                               self.kernel_size,
+                               self.stride,
+                               self.padding)
         return input
 
 
 class BinLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, istrain=True, drop=0):
+    def __init__(self, in_features, out_features, bias=True, is_train=True, drop=0):
         super().__init__(in_features, out_features, bias)
 
         self.alpha = nn.Parameter(torch.FloatTensor(out_features, 1), requires_grad=False)
-        self.istrain = istrain
+        self.istrain = is_train
         self.bn = nn.BatchNorm1d(in_features)
         self.dropout_ratio = drop
         if drop != 0:
             self.drop = nn.Dropout(drop)
-        if not istrain:
+        if not is_train:
             self.weight = nn.Parameter(torch.IntTensor(out_features, 1 + (in_features - 1) // 32))
 
     def forward(self, input):
@@ -152,7 +182,7 @@ class BinLinear(nn.Linear):
         return input
 
 
-class binop_train:
+class BinopTrain:
     def __init__(self, model):
         self.alpha_to_save = []
         self.saved_params = []
@@ -195,7 +225,7 @@ class binop_train:
         for index in range(self.num_of_params):
             self.target_modules[index].data.copy_(self.saved_params[index])
 
-    def updateBinaryGradWeight(self):
+    def update_binary_grad_weight(self):
         for index in range(self.num_of_params):
             weight = self.target_modules[index].data
             alpha = self.alpha_to_save[index].data.clone()
