@@ -31,10 +31,11 @@ def bin_save_state(args, model):
             binop.encode_rows_cpu(weight, bin_weight)
 
         state[key] = bin_weight
+
     torch.save(state, 'models/' + args.arch + '.pth')
 
 
-def bin_conv2d(input, weight, bias, alpha, kernel_size, stride, padding):
+def bin_conv2d(input, weight, bias, alpha, kernel_size, stride, padding, groups=1):
     out_tensor = torch.FloatTensor()
     col_tensor = torch.FloatTensor()
     use_cuda = input.is_cuda
@@ -50,13 +51,12 @@ def bin_conv2d(input, weight, bias, alpha, kernel_size, stride, padding):
     if use_cuda:
         binop.BinarySpatialConvolution_updateOutput(
             input.data, output.data, weight.data, col_tensor, bias.data, alpha.data,
-            input.data.shape[1], kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1]
+            input.data.shape[1], kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1], groups
         )
     else:
-        binop.THNN_Bin_SpatialConvolutionMM_updateOutput(
-            input.data, output.data, weight.data, bias.data, col_tensor, alpha.data,
-            kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1]
-        )
+        binop.update_conv_output_cpu(input.data, output.data, weight.data, bias.data, col_tensor, alpha.data,
+                                     kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1],
+                                     groups)
     return output
 
 
@@ -153,7 +153,8 @@ class BinConv2d(nn.Conv2d):
                                self.alpha,
                                self.kernel_size,
                                self.stride,
-                               self.padding)
+                               self.padding,
+                               groups=self.groups)
         return input
 
 

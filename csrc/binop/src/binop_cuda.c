@@ -84,7 +84,7 @@ void BinarySpatialConvolution_updateOutput(
            int nInputPlane,
            int kH, int kW,
            int sH, int sW,
-           int padH, int padW) {
+           int padH, int padW, int groups) {
 
     //THCUNN_assertSameGPU(state, 5, input, output, weight, columns, columns_binary);
 

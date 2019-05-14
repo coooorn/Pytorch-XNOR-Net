@@ -100,6 +100,10 @@ def eval_test(y_pred, y_true):
 def save_state(model):
     print('==> Saving model ...')
     torch.save(model.state_dict(), 'models/' + args.arch + '.pth')
+    state = model.state_dict()
+    for key in state.keys():
+        if 'weight' in key and 'bn' not in key:
+            print(key, state.get(key).shape)
 
 
 def train(model, binop_model, epoch):
@@ -134,6 +138,7 @@ def train(model, binop_model, epoch):
 
         optimizer.step()
         pbar.set_description('%.6f %.6f' % (running_loss.value, running_score.value))
+
     print('[+] epoch %d: \nTraining: Average loss: %.6f, Average error: %.6f' %
           (epoch, running_loss.value, running_score.value))
     if binop_model is not None:
@@ -171,6 +176,7 @@ def test(model, evaluate=False):
         else:
             pred = output.data.max(1, keepdim=False)[1]
             correct += pred.eq(target.data).cpu().sum()
+
     if evaluate:
         correct = pred.eq(true).cpu().sum()
     acc = 100. * correct / len(test_loader.dataset)
