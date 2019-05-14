@@ -186,4 +186,3 @@ void BinarySpatialConvolution_updateOutput(
     THCudaIntTensor_free(state, columns_binary);
 }
 
-

@@ -300,35 +300,6 @@ void update_conv_group_output_cpu(
     THIntTensor_free(bin_col);
 }
 
-void print_tensor_size(THFloatTensor *tensor)
-{
-    printf("(");
-    for (int i = 0; i < tensor->nDimension; ++i)
-    {
-        printf("%ld ", tensor->size[i]);
-    }
-    printf(")\n");
-}
-
-void print_tensor_data(THFloatTensor *tensor)
-{
-    for (int i = 0; i < 5; ++i)
-    {
-        printf("%f ", tensor->storage->data[i]);
-    }
-    printf("\n");
-}
-
-void print_int_tensor_size(THIntTensor *tensor)
-{
-    printf("(");
-    for (int i = 0; i < tensor->nDimension; ++i)
-    {
-        printf("%ld ", tensor->size[i]);
-    }
-    printf(")\n");
-}
-
 void concat_group(THFloatTensor *self, THFloatTensor *src, int group)
 {
     uint64_t T = self->size[0];

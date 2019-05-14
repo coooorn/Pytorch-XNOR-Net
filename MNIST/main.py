@@ -261,7 +261,6 @@ if __name__ == '__main__':
         batch_size=args.test_batch_size, shuffle=True, **kwargs)
 
     best_acc = 0.0
-    # model_ori = None
 
     binop_model_train = None
     model_train = None
