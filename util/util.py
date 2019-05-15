@@ -37,11 +37,9 @@ def bin_save_state(args, model):
 
 def bin_conv2d(input, weight, bias, alpha, kernel_size, stride, padding, groups=1):
     out_tensor = torch.FloatTensor()
-    col_tensor = torch.FloatTensor()
     use_cuda = input.is_cuda
     if use_cuda:
         out_tensor = out_tensor.cuda()
-        col_tensor = col_tensor.cuda()
     output = Variable(out_tensor, requires_grad=False)
     if bias is None:
         if use_cuda:
@@ -49,12 +47,11 @@ def bin_conv2d(input, weight, bias, alpha, kernel_size, stride, padding, groups=
         else:
             bias = Variable(torch.FloatTensor(), requires_grad=False)
     if use_cuda:
-        binop.BinarySpatialConvolution_updateOutput(
-            input.data, output.data, weight.data, col_tensor, bias.data, alpha.data,
-            input.data.shape[1], kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1], groups
-        )
+        binop.update_conv_output_gpu(input.data, output.data, weight.data, bias.data, alpha.data,
+                                     kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1],
+                                     groups)
     else:
-        binop.update_conv_output_cpu(input.data, output.data, weight.data, bias.data, col_tensor, alpha.data,
+        binop.update_conv_output_cpu(input.data, output.data, weight.data, bias.data, alpha.data,
                                      kernel_size[0], kernel_size[1], stride[0], stride[1], padding[0], padding[1],
                                      groups)
     return output
@@ -102,24 +99,15 @@ class BinActive(Function):
 
 
 class BinConv2d(nn.Conv2d):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 kernel_size,
-                 stride=1,
-                 padding=0,
-                 bias=True,
-                 is_train=True,
-                 drop=0,
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, is_train=True, drop=0,
                  groups=1):
-        super().__init__(in_channels,
-                         out_channels,
-                         kernel_size=kernel_size,
-                         stride=stride,
-                         padding=padding,
-                         bias=bias,
-                         groups=groups)
-
+        if is_train:
+            super(BinConv2d, self).__init__(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
+                                            padding=padding, bias=bias, groups=groups)
+        else:
+            super(BinConv2d, self).__init__(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
+                                            padding=padding, bias=bias)
+            self.groups = groups
         self.alpha = nn.Parameter(torch.FloatTensor(out_channels, 1, 1, 1), requires_grad=False)
         self.is_train = is_train
         self.bn = nn.BatchNorm2d(in_channels)
@@ -140,20 +128,10 @@ class BinConv2d(nn.Conv2d):
             input = BinActive.apply(input)
             if self.dropout_ratio != 0:
                 input = self.drop(input)
-            input = F.conv2d(input,
-                             weight=self.weight,
-                             bias=self.bias,
-                             stride=self.stride,
-                             padding=self.padding,
+            input = F.conv2d(input, weight=self.weight, bias=self.bias, stride=self.stride, padding=self.padding,
                              groups=self.groups)
         else:
-            input = bin_conv2d(input,
-                               self.weight,
-                               self.bias,
-                               self.alpha,
-                               self.kernel_size,
-                               self.stride,
-                               self.padding,
+            input = bin_conv2d(input, self.weight, self.bias, self.alpha, self.kernel_size, self.stride, self.padding,
                                groups=self.groups)
         return input
 
@@ -212,15 +190,12 @@ class BinopTrain:
 
             # get alpha, binarize weight and mutiply alpha
             if len(s) == 4:
-                self.alpha_to_save[index].data = \
-                    self.target_modules[index].data.norm(1, 3, keepdim=True).sum(2, keepdim=True).sum(1,
-                                                                                                      keepdim=True).div(
-                        n)
+                self.alpha_to_save[index].data = self.target_modules[index].data.norm(1, 3, keepdim=True) \
+                    .sum(2, keepdim=True).sum(1, keepdim=True).div(n)
             elif len(s) == 2:
-                self.alpha_to_save[index].data = \
-                    self.target_modules[index].data.norm(1, 1, keepdim=True).div(n)
-            self.target_modules[index].data.sign().mul(
-                self.alpha_to_save[index].data.expand(s), out=self.target_modules[index].data)
+                self.alpha_to_save[index].data = self.target_modules[index].data.norm(1, 1, keepdim=True).div(n)
+            self.target_modules[index].data.sign().mul(self.alpha_to_save[index].data.expand(s),
+                                                       out=self.target_modules[index].data)
 
     def restore(self):
         for index in range(self.num_of_params):

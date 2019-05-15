@@ -77,7 +77,8 @@ void encode_cols_cpu(THFloatTensor *input, THIntTensor *output)
     encode_cols_cpu_kernel(a, b, n, k);
 }
 
-void binary_gemm_cpu(THIntTensor *a, THIntTensor *b, THFloatTensor *c, int m, int nn, int k, int transb, int beta, int alpha, THFloatTensor *alphas)
+void binary_gemm_cpu(THIntTensor *a, THIntTensor *b, THFloatTensor *c, int m, int nn,
+                     int k, int transb, int beta, int alpha, THFloatTensor *alphas)
 {
     if (c->nDimension != 2 || c->size[0] * c->size[1] < m * k)
     {
@@ -91,15 +92,10 @@ void binary_gemm_cpu(THIntTensor *a, THIntTensor *b, THFloatTensor *c, int m, in
     dgemm_nn(m, k, nn, A, n, 1, B, brow, bcol, C, k, 1, beta, alpha, D);
 }
 
-void THNN_unfolded_copy(
-    THFloatTensor *columns,
-    THFloatTensor *input,
-    int kW, int kH,
-    int dW, int dH,
-    int padW, int padH,
-    int nInputPlane,
-    int inputWidth, int inputHeight,
-    int outputWidth, int outputHeight)
+void THNN_unfolded_copy(THFloatTensor *columns, THFloatTensor *input,
+                        int kW, int kH, int dW, int dH, int padW, int padH,
+                        int nInputPlane, int inputWidth, int inputHeight,
+                        int outputWidth, int outputHeight)
 {
     // This function assumes that
     // kH*kW does not overflow an int
@@ -214,12 +210,11 @@ static void THNN_Bin_SpatialConvolutionMM_updateOutput_frame(
     THFloatTensor_free(output2d);
 }
 
-void update_conv_group_output_cpu(
+void THNN_Bin_SpatialConvolutionMM_updateOutput(
     THFloatTensor *input,
     THFloatTensor *output,
     THIntTensor *weight,
     THFloatTensor *bias,
-    THFloatTensor *columns,
     THFloatTensor *alphas,
     int kH,
     int kW,
@@ -228,8 +223,6 @@ void update_conv_group_output_cpu(
     int padH,
     int padW)
 {
-    THIntTensor *bin_col = THIntTensor_new();
-    THFloatTensor *ones = THFloatTensor_new();
     input = THFloatTensor_newContiguous(input);
     int ndim = input->nDimension;
     int dimf = 0;
@@ -255,7 +248,7 @@ void update_conv_group_output_cpu(
         THFloatTensor_resize2d(bias, bias->size[0], 1);
     }
 
-    THFloatTensor_resize2d(ones, 1, outputHeight * outputWidth);
+    THFloatTensor *ones = THFloatTensor_newWithSize2d(1, outputHeight * outputWidth);
     THFloatTensor_fill(ones, 1);
 
     int64_t T = input->size[0];
@@ -263,8 +256,8 @@ void update_conv_group_output_cpu(
 
     THFloatTensor_resize4d(output, T, nOutputPlane, outputHeight, outputWidth);
 
-    THFloatTensor_resize3d(columns, T, kW * kH * nInputPlane, outputHeight * outputWidth);
-    THIntTensor_resize3d(bin_col, T, weight->size[0], outputHeight * outputWidth);
+    THFloatTensor *columns = THFloatTensor_newWithSize3d(T, kW * kH * nInputPlane, outputHeight * outputWidth);
+    THIntTensor *bin_col = THIntTensor_newWithSize3d(T, weight->size[0], outputHeight * outputWidth);
 
 #pragma omp parallel for private(t)
     for (t = 0; t < T; t++)
@@ -298,9 +291,10 @@ void update_conv_group_output_cpu(
     THFloatTensor_free(input);
     THFloatTensor_free(ones);
     THIntTensor_free(bin_col);
+    THFloatTensor_free(columns);
 }
 
-void concat_group(THFloatTensor *self, THFloatTensor *src, int group)
+void concat_group_cpu(THFloatTensor *self, THFloatTensor *src, int group)
 {
     uint64_t T = self->size[0];
     uint64_t data_size = src->size[2] * src->size[3];
@@ -336,7 +330,6 @@ void update_conv_output_cpu(
     THFloatTensor *output,
     THIntTensor *weight,
     THFloatTensor *bias,
-    THFloatTensor *columns,
     THFloatTensor *alphas,
     int kernel_height,
     int kernel_width,
@@ -346,6 +339,13 @@ void update_conv_output_cpu(
     int pad_columns,
     int groups)
 {
+    if (groups == 1)
+    {
+        THNN_Bin_SpatialConvolutionMM_updateOutput(input, output, weight, bias, alphas,
+                                                   kernel_height, kernel_width, stride_vertical, stride_horizontal,
+                                                   padding_rows, pad_columns);
+        return;
+    }
     int g;
     uint64_t channels = input->size[1];
     uint64_t input_group_size = channels / groups;
@@ -356,28 +356,24 @@ void update_conv_output_cpu(
 
     uint64_t T = input->size[0];
 
-    THFloatTensor_resize4d(output,
-                           T,
-                           weight->size[0],
-                           output_height,
-                           output_width);
+    THFloatTensor_resize4d(output, T, weight->size[0], output_height, output_width);
 
     for (g = 0; g < groups; ++g)
     {
-        THFloatTensor *group_input = THFloatTensor_newNarrow(input, 1,
-                                                             g * input_group_size, input_group_size);
-        THIntTensor *group_weight = THIntTensor_newNarrow(weight, 0,
-                                                          g * weight_group_size, weight_group_size);
-        THFloatTensor *group_output = THFloatTensor_new();
+        THFloatTensor *grouped_input = THFloatTensor_newNarrow(input, 1,
+                                                               g * input_group_size, input_group_size);
+        THIntTensor *grouped_weight = THIntTensor_newNarrow(weight, 0,
+                                                            g * weight_group_size, weight_group_size);
+        THFloatTensor *grouped_output = THFloatTensor_new();
 
-        update_conv_group_output_cpu(group_input, group_output, group_weight, bias, columns, alphas,
-                                     kernel_height, kernel_width, stride_vertical, stride_horizontal,
-                                     padding_rows, pad_columns);
+        THNN_Bin_SpatialConvolutionMM_updateOutput(grouped_input, grouped_output, grouped_weight, bias, alphas,
+                                                   kernel_height, kernel_width, stride_vertical, stride_horizontal,
+                                                   padding_rows, pad_columns);
 
-        concat_group(output, group_output, g);
+        concat_group_cpu(output, grouped_output, g);
 
-        THFloatTensor_free(group_input);
-        THIntTensor_free(group_weight);
-        THFloatTensor_free(group_output);
+        THFloatTensor_free(grouped_input);
+        THIntTensor_free(grouped_weight);
+        THFloatTensor_free(grouped_output);
     }
 }

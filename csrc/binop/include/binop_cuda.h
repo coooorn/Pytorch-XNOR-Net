@@ -29,18 +29,16 @@ void encode_rows(THCudaTensor *input, THCudaIntTensor *output);
 
 void encode_cols(THCudaTensor *input, THCudaIntTensor *output);
 
-void BinarySpatialConvolution_updateOutput(
+void update_conv_output_gpu(
     THCudaTensor *input,
     THCudaTensor *output,
     THCudaIntTensor *weight,
-    THCudaTensor *columns,
     THCudaTensor *bias,
     THCudaTensor *alphas,
-    int nInputPlane,
-    int kH,
-    int kW,
-    int sH,
-    int sW,
-    int padH,
-    int padW,
+    int kernel_height,
+    int kernel_width,
+    int stride_vertical,
+    int stride_horizontal,
+    int padding_rows,
+    int pad_columns,
     int groups);

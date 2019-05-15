@@ -44,7 +44,7 @@ class GroupedLeNet(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=20, kernel_size=5, bias=False)
         self.bn1 = nn.BatchNorm2d(num_features=20)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(in_channels=20, out_channels=50, kernel_size=5, bias=False, groups=2)
+        self.conv2 = nn.Conv2d(in_channels=20, out_channels=50, kernel_size=5, bias=False, groups=10)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.fc1 = nn.Linear(in_features=50 * 4 * 4, out_features=500, bias=False)
 

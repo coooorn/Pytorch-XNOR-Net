@@ -19,7 +19,6 @@ void update_conv_output_cpu(
     THFloatTensor *output,
     THIntTensor *weight,
     THFloatTensor *bias,
-    THFloatTensor *columns,
     THFloatTensor *alphas,
     int kernel_height,
     int kernel_width,
