@@ -100,10 +100,6 @@ def eval_test(y_pred, y_true):
 def save_state(model):
     print('==> Saving model ...')
     torch.save(model.state_dict(), 'models/' + args.arch + '.pth')
-    state = model.state_dict()
-    for key in state.keys():
-        if 'weight' in key and 'bn' not in key:
-            print(key, state.get(key).shape)
 
 
 def train(model, binop_model, epoch):
@@ -270,7 +266,7 @@ if __name__ == '__main__':
     if args.arch == 'LeNet':
         model_train = models.LeNet()
         model_test = models.LeNet()
-    if args.arch == 'Grouped_LeNet':
+    elif args.arch == 'Grouped_LeNet':
         model_train = models.GroupedLeNet()
         model_test = models.GroupedLeNet()
     elif args.arch == 'Bin_LeNet':
