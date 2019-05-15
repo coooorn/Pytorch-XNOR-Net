@@ -294,37 +294,6 @@ void THNN_Bin_SpatialConvolutionMM_updateOutput(
     THFloatTensor_free(columns);
 }
 
-void concat_group_cpu(THFloatTensor *self, THFloatTensor *src, int group)
-{
-    uint64_t T = self->size[0];
-    uint64_t data_size = src->size[2] * src->size[3];
-
-    uint64_t self_batch_size = self->size[1] * data_size;
-    uint16_t self_skipped_channels_size = group * src->size[1] * data_size;
-
-    uint64_t src_batch_size = src->size[1] * data_size;
-    uint64_t n_channels = src->size[1];
-
-    float *A = self->storage->data;
-    float *B = src->storage->data;
-
-    for (uint64_t t = 0; t < T; ++t)
-    {
-        uint64_t p_t1 = t * self_batch_size + self_skipped_channels_size;
-        uint64_t p_t2 = t * src_batch_size;
-
-        for (uint64_t c = 0; c < n_channels; ++c)
-        {
-            uint64_t p_c = c * data_size;
-
-            for (uint64_t i = 0; i < data_size; ++i)
-            {
-                A[p_t1 + p_c + i] = B[p_t2 + p_c + i];
-            }
-        }
-    }
-}
-
 void update_conv_output_cpu(
     THFloatTensor *input,
     THFloatTensor *output,
@@ -351,12 +320,7 @@ void update_conv_output_cpu(
     uint64_t input_group_size = channels / groups;
     uint64_t weight_group_size = weight->size[0] / groups;
 
-    uint64_t output_height = (input->size[2] + 2 * padding_rows - kernel_height) / stride_vertical + 1;
-    uint64_t output_width = (input->size[3] + 2 * pad_columns - kernel_width) / stride_horizontal + 1;
-
-    uint64_t T = input->size[0];
-
-    THFloatTensor_resize4d(output, T, weight->size[0], output_height, output_width);
+    THFloatTensor *output_t = THFloatTensor_new();
 
     for (g = 0; g < groups; ++g)
     {
@@ -370,10 +334,17 @@ void update_conv_output_cpu(
                                                    kernel_height, kernel_width, stride_vertical, stride_horizontal,
                                                    padding_rows, pad_columns);
 
-        concat_group_cpu(output, grouped_output, g);
+        THFloatTensor *cat_result = THFloatTensor_new();
+        THFloatTensor_cat(cat_result, output_t, grouped_output, 1);
+        THFloatTensor_free(output_t);
+        output_t = cat_result;
 
         THFloatTensor_free(grouped_input);
         THIntTensor_free(grouped_weight);
         THFloatTensor_free(grouped_output);
     }
+
+    THFloatTensor_resizeAs(output, output_t);
+    THFloatTensor_copy(output, output_t);
+    THFloatTensor_free(output_t);
 }

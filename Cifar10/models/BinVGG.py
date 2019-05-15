@@ -94,7 +94,9 @@ class GroupedBinVGG(nn.Module):
                 layers['pool' + str(cnt)] = nn.MaxPool2d(kernel_size=2, stride=2)
                 cnt += 1
             else:
-                groups = 2 if in_channels % 2 == 0 else 1
+                groups = 1
+                while in_channels % (groups * 2) == 0 and groups < 16:
+                    groups *= 2
 
                 layers['conv' + str(cnt)] = BinConv2d(in_channels=in_channels, out_channels=x, kernel_size=3, padding=1,
                                                       is_train=self.is_train, groups=groups)
@@ -106,3 +108,27 @@ class GroupedBinVGG(nn.Module):
                 in_channels = x
         layers['pool' + str(cnt)] = nn.AvgPool2d(kernel_size=1, stride=1)
         return nn.Sequential(layers)
+
+    def load_state_dict(self, state_dict, strict=True):
+        own_state = self.state_dict()
+        for name, param in state_dict.items():
+            if name in own_state:
+                if isinstance(param, nn.Parameter):
+                    # backwards compatibility for serialized parameters
+                    param = param.data
+                try:
+                    if 'weight' in name and 'conv' in name:
+                        own_state[name].resize_(param.size())
+                    own_state[name].copy_(param)
+                except Exception:
+                    raise RuntimeError('While copying the parameter named {}, '
+                                       'whose dimensions in the model are {} and '
+                                       'whose dimensions in the checkpoint are {}.'
+                                       .format(name, own_state[name].size(), param.size()))
+            elif strict:
+                raise KeyError('unexpected key "{}" in state_dict'
+                               .format(name))
+        if strict:
+            missing = set(own_state.keys()) - set(state_dict.keys())
+            if len(missing) > 0:
+                raise KeyError('missing keys in state_dict: "{}"'.format(missing))

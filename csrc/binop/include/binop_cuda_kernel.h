@@ -21,10 +21,6 @@ extern "C"
     void encode_rows_cuda(float *input, uint32_t *output, int m, int n, int l, cudaStream_t stream);
     void encode_cols_cuda(float *input, uint32_t *output, int n, int k, cudaStream_t stream);
 
-    void concatenate_cuda(float *self, float *src,
-                          int self_sz0, int self_sz1, int self_sz2, int self_sz3,
-                          int src_sz0, int src_sz1, int src_sz2, int src_sz3, int group, cudaStream_t stream);
-
 #ifdef __cplusplus
 }
 #endif

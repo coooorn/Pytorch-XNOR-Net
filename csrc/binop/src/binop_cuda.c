@@ -187,18 +187,6 @@ void BinarySpatialConvolution_updateOutput(
     THCudaIntTensor_free(state, columns_binary);
 }
 
-void concat_group_gpu(THCudaTensor *self, THCudaTensor *src, int group)
-{
-    float *A = THCudaTensor_data(state, self);
-    float *B = THCudaTensor_data(state, src);
-
-    cudaStream_t stream = THCState_getCurrentStream(state);
-
-    concatenate_cuda(A, B,
-                     (int)self->size[0], (int)self->size[1], (int)self->size[2], (int)self->size[3],
-                     (int)src->size[0], (int)src->size[1], (int)src->size[2], (int)src->size[3], group, stream);
-}
-
 void update_conv_output_gpu(
     THCudaTensor *input,
     THCudaTensor *output,
@@ -225,13 +213,8 @@ void update_conv_output_gpu(
     uint64_t channels = input->size[1];
     uint64_t input_group_size = channels / groups;
     uint64_t weight_group_size = weight->size[0] / groups;
-
-    uint64_t output_height = (input->size[2] + 2 * padding_rows - kernel_height) / stride_vertical + 1;
-    uint64_t output_width = (input->size[3] + 2 * pad_columns - kernel_width) / stride_horizontal + 1;
-
-    uint64_t T = input->size[0];
-
-    THCudaTensor_resize4d(state, output, T, weight->size[0], output_height, output_width);
+    
+    THCudaTensor *output_t = THCudaTensor_new(state);
 
     for (g = 0; g < groups; ++g)
     {
@@ -247,10 +230,17 @@ void update_conv_output_gpu(
                                               kernel_height, kernel_width, stride_vertical, stride_horizontal,
                                               padding_rows, pad_columns);
 
-        concat_group_gpu(output, grouped_output, g);
+        THCudaTensor *cat_result = THCudaTensor_new(state);
+        THCudaTensor_cat(state, cat_result, output_t, grouped_output, 1);
+        THCudaTensor_free(state, output_t);
+        output_t = cat_result;
 
         THCudaTensor_free(state, grouped_input);
         THCudaIntTensor_free(state, grouped_weight);
         THCudaTensor_free(state, grouped_output);
     }
+    
+    THCudaTensor_resizeAs(state, output, output_t);
+    THCudaTensor_copy(state, output, output_t);
+    THCudaTensor_free(state, output_t);
 }

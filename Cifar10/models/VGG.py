@@ -54,7 +54,10 @@ class GroupedVGG(nn.Module):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
-                groups = 2 if in_channels % 2 == 0 else 1
+                groups = 1
+                while in_channels % (groups * 2) == 0 and groups < 16:
+                    groups *= 2
+
                 layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1, groups=groups),
                            nn.BatchNorm2d(x),
                            nn.ReLU(inplace=True)]
